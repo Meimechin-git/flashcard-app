@@ -3,6 +3,7 @@ const app = {
     currentView: 'home',
     currentExamId: null,
     currentSubjectId: null,
+    currentFieldId: null,
     currentCardIndex: 0,
     showAnswer: false,
 
@@ -34,6 +35,8 @@ const app = {
             this.renderHome(main);
         } else if (this.currentView === 'subjects') {
             this.renderSubjects(main, breadcrumb);
+        } else if (this.currentView === 'fields') {
+            this.renderFields(main, breadcrumb);
         } else if (this.currentView === 'study') {
             this.renderStudy(main, breadcrumb);
         } else if (this.currentView === 'create-card') {
@@ -55,6 +58,7 @@ const app = {
         this.currentView = 'home';
         this.currentExamId = null;
         this.currentSubjectId = null;
+        this.currentFieldId = null;
         this.render();
     },
 
@@ -79,18 +83,20 @@ const app = {
     showSubjects(examId) {
         this.currentView = 'subjects';
         this.currentExamId = examId;
+        this.currentSubjectId = null;
+        this.currentFieldId = null;
         this.render();
     },
 
     renderSubjects(container, breadcrumb) {
         const exam = this.data.exams.find(e => e.id === this.currentExamId);
-        breadcrumb.innerHTML = `<span>${exam.name}</span>`;
+        breadcrumb.innerHTML = `<span onclick="app.showHome()" style="cursor:pointer">${exam.name}</span>`;
         container.innerHTML = `
             <h2>教科一覧</h2>
             <div class="list-container">
                 ${exam.subjects.map(subj => `
                     <div class="item-card">
-                        <span onclick="app.startStudy('${subj.id}')" style="flex-grow:1">${subj.name} (${subj.cards.length} 枚)</span>
+                        <span onclick="app.showFields('${subj.id}')" style="flex-grow:1">${subj.name} (${subj.fields.length} 分野)</span>
                         <div class="button-group" style="margin-top:0">
                             <button class="secondary" onclick="app.editSubject('${subj.id}')">編集</button>
                             <button class="danger" onclick="app.deleteSubject('${subj.id}')">削除</button>
@@ -105,9 +111,43 @@ const app = {
         `;
     },
 
-    startStudy(subjectId) {
-        this.currentView = 'study';
+    showFields(subjectId) {
+        this.currentView = 'fields';
         this.currentSubjectId = subjectId;
+        this.currentFieldId = null;
+        this.render();
+    },
+
+    renderFields(container, breadcrumb) {
+        const exam = this.data.exams.find(e => e.id === this.currentExamId);
+        const subj = exam.subjects.find(s => s.id === this.currentSubjectId);
+        breadcrumb.innerHTML = `
+            <span onclick="app.showHome()" style="cursor:pointer">${exam.name}</span> > 
+            <span onclick="app.showSubjects('${exam.id}')" style="cursor:pointer">${subj.name}</span>
+        `;
+        container.innerHTML = `
+            <h2>分野一覧</h2>
+            <div class="list-container">
+                ${subj.fields.map(field => `
+                    <div class="item-card">
+                        <span onclick="app.startStudy('${field.id}')" style="flex-grow:1">${field.name} (${field.cards.length} 枚)</span>
+                        <div class="button-group" style="margin-top:0">
+                            <button class="secondary" onclick="app.editField('${field.id}')">編集</button>
+                            <button class="danger" onclick="app.deleteField('${field.id}')">削除</button>
+                        </div>
+                    </div>
+                `).join('')}
+                <button class="secondary" onclick="app.addField()">+ 新しい分野を追加</button>
+            </div>
+            <div class="button-group">
+                <button onclick="app.showSubjects('${this.currentExamId}')">戻る</button>
+            </div>
+        `;
+    },
+
+    startStudy(fieldId) {
+        this.currentView = 'study';
+        this.currentFieldId = fieldId;
         this.currentCardIndex = 0;
         this.showAnswer = false;
         this.render();
@@ -116,9 +156,14 @@ const app = {
     renderStudy(container, breadcrumb) {
         const exam = this.data.exams.find(e => e.id === this.currentExamId);
         const subj = exam.subjects.find(s => s.id === this.currentSubjectId);
-        const card = subj.cards[this.currentCardIndex];
+        const field = subj.fields.find(f => f.id === this.currentFieldId);
+        const card = field.cards[this.currentCardIndex];
 
-        breadcrumb.innerHTML = `<span>${exam.name} > ${subj.name}</span>`;
+        breadcrumb.innerHTML = `
+            <span onclick="app.showHome()" style="cursor:pointer">${exam.name}</span> > 
+            <span onclick="app.showSubjects('${exam.id}')" style="cursor:pointer">${subj.name}</span> > 
+            <span onclick="app.showFields('${subj.id}')" style="cursor:pointer">${field.name}</span>
+        `;
 
         if (!card) {
             container.innerHTML = `
@@ -127,7 +172,7 @@ const app = {
                     <button class="primary" onclick="app.showCreateCard()">カードを追加する</button>
                 </div>
                 <div class="button-group">
-                    <button onclick="app.showSubjects('${this.currentExamId}')">戻る</button>
+                    <button onclick="app.showFields('${this.currentSubjectId}')">戻る</button>
                 </div>
             `;
             return;
@@ -155,9 +200,9 @@ const app = {
                 <button class="secondary" onclick="app.showCreateCard()">+ カードを追加</button>
                 <button class="secondary" onclick="app.showEditCard()">このカードを編集</button>
                 <button class="danger" onclick="app.deleteCard()">このカードを削除</button>
-                <button onclick="app.showSubjects('${this.currentExamId}')">中断して戻る</button>
+                <button onclick="app.showFields('${this.currentSubjectId}')">中断して戻る</button>
             </div>
-            <p style="text-align:center; color:#666;">${this.currentCardIndex + 1} / ${subj.cards.length}</p>
+            <p style="text-align:center; color:#666;">${this.currentCardIndex + 1} / ${field.cards.length}</p>
         `;
     },
 
@@ -169,11 +214,12 @@ const app = {
     nextCard() {
         const exam = this.data.exams.find(e => e.id === this.currentExamId);
         const subj = exam.subjects.find(s => s.id === this.currentSubjectId);
+        const field = subj.fields.find(f => f.id === this.currentFieldId);
 
         this.currentCardIndex++;
-        if (this.currentCardIndex >= subj.cards.length) {
+        if (this.currentCardIndex >= field.cards.length) {
             alert('全カードが終了しました！');
-            this.showSubjects(this.currentExamId);
+            this.showFields(this.currentSubjectId);
         } else {
             this.showAnswer = false;
             this.render();
@@ -195,9 +241,15 @@ const app = {
     renderCreateCard(container, breadcrumb) {
         const exam = this.data.exams.find(e => e.id === this.currentExamId);
         const subj = exam.subjects.find(s => s.id === this.currentSubjectId);
-        const card = this.isEditingCard ? subj.cards[this.currentCardIndex] : null;
+        const field = subj.fields.find(f => f.id === this.currentFieldId);
+        const card = this.isEditingCard ? field.cards[this.currentCardIndex] : null;
 
-        breadcrumb.innerHTML = `<span>${exam.name} > ${subj.name} > ${this.isEditingCard ? 'カード編集' : '新規カード'}</span>`;
+        breadcrumb.innerHTML = `
+            <span onclick="app.showHome()" style="cursor:pointer">${exam.name}</span> > 
+            <span onclick="app.showSubjects('${exam.id}')" style="cursor:pointer">${subj.name}</span> > 
+            <span onclick="app.showFields('${subj.id}')" style="cursor:pointer">${field.name}</span> > 
+            <span>${this.isEditingCard ? 'カード編集' : '新規カード'}</span>
+        `;
 
         container.innerHTML = `
             <div class="form-container">
@@ -212,7 +264,7 @@ const app = {
                 </div>
                 <div class="button-group">
                     <button class="primary" onclick="app.submitCard()">${this.isEditingCard ? '更新' : '保存'}</button>
-                    <button onclick="app.startStudy('${this.currentSubjectId}')">キャンセル</button>
+                    <button onclick="app.startStudy('${this.currentFieldId}')">キャンセル</button>
                 </div>
             </div>
         `;
@@ -225,13 +277,14 @@ const app = {
 
         const exam = this.data.exams.find(e => e.id === this.currentExamId);
         const subj = exam.subjects.find(s => s.id === this.currentSubjectId);
+        const field = subj.fields.find(f => f.id === this.currentFieldId);
 
         if (this.isEditingCard) {
-            const card = subj.cards[this.currentCardIndex];
+            const card = field.cards[this.currentCardIndex];
             card.question = q;
             card.answer = a;
         } else {
-            subj.cards.push({
+            field.cards.push({
                 id: 'card-' + Date.now(),
                 question: q,
                 answer: a
@@ -239,22 +292,23 @@ const app = {
         }
 
         await this.saveData();
-        this.startStudy(this.currentSubjectId);
+        this.startStudy(this.currentFieldId);
     },
 
     async deleteCard() {
         if (!confirm('このカードを削除してもよろしいですか？')) return;
         const exam = this.data.exams.find(e => e.id === this.currentExamId);
         const subj = exam.subjects.find(s => s.id === this.currentSubjectId);
+        const field = subj.fields.find(f => f.id === this.currentFieldId);
         
-        subj.cards.splice(this.currentCardIndex, 1);
+        field.cards.splice(this.currentCardIndex, 1);
         await this.saveData();
 
-        if (subj.cards.length === 0) {
-            this.showSubjects(this.currentExamId);
+        if (field.cards.length === 0) {
+            this.showFields(this.currentSubjectId);
         } else {
-            if (this.currentCardIndex >= subj.cards.length) {
-                this.currentCardIndex = subj.cards.length - 1;
+            if (this.currentCardIndex >= field.cards.length) {
+                this.currentCardIndex = field.cards.length - 1;
             }
             this.showAnswer = false;
             this.render();
@@ -283,7 +337,7 @@ const app = {
     },
 
     async deleteExam(id) {
-        if (!confirm('この試験と含まれるすべての教科・カードを削除してもよろしいですか？')) return;
+        if (!confirm('この試験と含まれるすべての教科・分野・カードを削除してもよろしいですか？')) return;
         this.data.exams = this.data.exams.filter(e => e.id !== id);
         await this.saveData();
         this.render();
@@ -296,7 +350,7 @@ const app = {
         exam.subjects.push({
             id: 'subj-' + Date.now(),
             name: name,
-            cards: []
+            fields: []
         });
         await this.saveData();
         this.render();
@@ -313,9 +367,43 @@ const app = {
     },
 
     async deleteSubject(id) {
-        if (!confirm('この教科と含まれるすべてのカードを削除してもよろしいですか？')) return;
+        if (!confirm('この教科と含まれるすべての分野・カードを削除してもよろしいですか？')) return;
         const exam = this.data.exams.find(e => e.id === this.currentExamId);
         exam.subjects = exam.subjects.filter(s => s.id !== id);
+        await this.saveData();
+        this.render();
+    },
+
+    async addField() {
+        const name = prompt('分野名を入力してください');
+        if (!name) return;
+        const exam = this.data.exams.find(e => e.id === this.currentExamId);
+        const subj = exam.subjects.find(s => s.id === this.currentSubjectId);
+        subj.fields.push({
+            id: 'field-' + Date.now(),
+            name: name,
+            cards: []
+        });
+        await this.saveData();
+        this.render();
+    },
+
+    async editField(id) {
+        const exam = this.data.exams.find(e => e.id === this.currentExamId);
+        const subj = exam.subjects.find(s => s.id === this.currentSubjectId);
+        const field = subj.fields.find(f => f.id === id);
+        const newName = prompt('分野名を編集してください', field.name);
+        if (!newName || newName === field.name) return;
+        field.name = newName;
+        await this.saveData();
+        this.render();
+    },
+
+    async deleteField(id) {
+        if (!confirm('この分野と含まれるすべてのカードを削除してもよろしいですか？')) return;
+        const exam = this.data.exams.find(e => e.id === this.currentExamId);
+        const subj = exam.subjects.find(s => s.id === this.currentSubjectId);
+        subj.fields = subj.fields.filter(f => f.id !== id);
         await this.saveData();
         this.render();
     }
